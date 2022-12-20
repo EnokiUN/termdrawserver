@@ -19,7 +19,7 @@ use termdrawserver::*;
 // Join Room
 // Client                            Server
 // RoomJoin(Uuid)  ----------->
-//                 <-----------      Join(Uuid, Vec<Pixel>)
+//                 <-----------      Join(Uuid, Room)
 //
 // Join non-existent room
 // Client                            Server
@@ -46,7 +46,16 @@ async fn handle_connection(stream: TcpStream, clients: Clients) {
                         ))
                         .await
                         .expect("Could not send room create payload");
-                        clients.lock().await.insert(room_id, vec![tx]);
+                        let mut pixels = HashMap::new();
+                        pixels.insert((0, 0), PixelColour::White);
+                        clients.lock().await.insert(
+                            room_id,
+                            Room {
+                                id: room_id,
+                                pixels,
+                                users: vec![tx],
+                            },
+                        );
                         log::info!(
                             "New room {} created by user {} with id {}",
                             room_id,
@@ -60,15 +69,12 @@ async fn handle_connection(stream: TcpStream, clients: Clients) {
                         if let Some(room) = clients.get_mut(&room_id) {
                             let user_id = Uuid::new_v4();
                             tx.send(Message::Text(
-                                serde_json::to_string(&ServerPayload::Join {
-                                    user_id,
-                                    pixels: vec![],
-                                })
-                                .unwrap(),
+                                serde_json::to_string(&ServerPayload::Join { user_id, room })
+                                    .unwrap(),
                             ))
                             .await
                             .expect("Could not send room create payload");
-                            room.push(tx);
+                            room.users.push(tx);
                             log::info!("User {} joined room {} with id {}", addr, room_id, user_id);
                             break (room_id, user_id);
                         } else {
