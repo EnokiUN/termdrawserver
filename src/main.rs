@@ -1,14 +1,15 @@
+mod handle_join;
+
 use anyhow::Context;
-use futures::{SinkExt, StreamExt};
+use futures::StreamExt;
 use std::collections::HashMap;
 use std::env;
 use std::sync::Arc;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::Mutex;
-use tokio_tungstenite::{accept_async, tungstenite::Message};
-use uuid::Uuid;
+use tokio_tungstenite::accept_async;
 
-use termdrawserver::*;
+use termdrawserver::Clients;
 
 // New Room
 //
@@ -31,66 +32,10 @@ async fn handle_connection(stream: TcpStream, clients: Clients) {
         .await
         .expect("Could not accpet socket stream");
     log::info!("Started a connection with {}", addr);
-    let (mut tx, mut rx) = stream.split();
-    let (_room_id, _user_id) = loop {
-        if let Some(Ok(Message::Text(msg))) = rx.next().await {
-            if let Ok(payload) = serde_json::from_str::<ClientPayload>(&msg) {
-                log::info!("Got payload {:?}", payload);
-                match payload {
-                    ClientPayload::CreateRoom => {
-                        let room_id = Uuid::new_v4();
-                        let user_id = Uuid::new_v4();
-                        tx.send(Message::Text(
-                            serde_json::to_string(&ServerPayload::NewRoom { room_id, user_id })
-                                .unwrap(),
-                        ))
-                        .await
-                        .expect("Could not send room create payload");
-                        let mut pixels = HashMap::new();
-                        pixels.insert((0, 0), PixelColour::White);
-                        clients.lock().await.insert(
-                            room_id,
-                            Room {
-                                id: room_id,
-                                pixels,
-                                users: vec![tx],
-                            },
-                        );
-                        log::info!(
-                            "New room {} created by user {} with id {}",
-                            room_id,
-                            addr,
-                            room_id
-                        );
-                        break (room_id, user_id);
-                    }
-                    ClientPayload::JoinRoom(room_id) => {
-                        let mut clients = clients.lock().await;
-                        if let Some(room) = clients.get_mut(&room_id) {
-                            let user_id = Uuid::new_v4();
-                            tx.send(Message::Text(
-                                serde_json::to_string(&ServerPayload::Join { user_id, room })
-                                    .unwrap(),
-                            ))
-                            .await
-                            .expect("Could not send room create payload");
-                            room.users.push(tx);
-                            log::info!("User {} joined room {} with id {}", addr, room_id, user_id);
-                            break (room_id, user_id);
-                        } else {
-                            tx.send(Message::Text(
-                                serde_json::to_string(&ServerPayload::RoomNotFound).unwrap(),
-                            ))
-                            .await
-                            .expect("Could not send room create payload");
-                            log::info!("Client {} tried to access unknown room", addr);
-                        }
-                    }
-                    _ => {}
-                }
-            }
-        }
-    };
+    let (tx, mut rx) = stream.split();
+    let (_room_id, _user_id) = handle_join::handle_join(&clients, &mut rx, tx, &addr)
+        .await
+        .unwrap();
 }
 
 #[tokio::main]
