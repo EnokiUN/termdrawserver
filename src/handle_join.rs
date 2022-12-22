@@ -17,7 +17,6 @@ pub async fn handle_join(
 ) -> Result<(Uuid, Uuid), ()> {
     while let Some(Ok(Message::Text(msg))) = rx.next().await {
         if let Ok(payload) = serde_json::from_str::<ClientPayload>(&msg) {
-            log::info!("Got payload {:?}", payload);
             match payload {
                 ClientPayload::CreateRoom => {
                     let room_id = Uuid::new_v4();
@@ -28,12 +27,14 @@ pub async fn handle_join(
                     ))
                     .await
                     .expect("Could not send room create payload");
+                    let mut users = HashMap::new();
+                    users.insert(user_id, tx);
                     clients.lock().await.insert(
                         room_id,
                         Room {
                             id: room_id,
                             pixels: HashMap::new(),
-                            users: vec![tx],
+                            users,
                         },
                     );
                     log::info!(
@@ -53,7 +54,7 @@ pub async fn handle_join(
                         ))
                         .await
                         .expect("Could not send room create payload");
-                        room.users.push(tx);
+                        room.users.insert(user_id, tx);
                         log::info!("User {} joined room {} with id {}", addr, room_id, user_id);
                         return Ok((room_id, user_id));
                     } else {

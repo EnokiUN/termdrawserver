@@ -1,13 +1,17 @@
 mod handle_join;
+mod handle_payloads;
 
 use anyhow::Context;
 use futures::StreamExt;
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::env;
 use std::sync::Arc;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::Mutex;
 use tokio_tungstenite::accept_async;
+use tokio_tungstenite::tungstenite::protocol::frame::coding::CloseCode;
+use tokio_tungstenite::tungstenite::protocol::CloseFrame;
 
 use termdrawserver::Clients;
 
@@ -33,9 +37,31 @@ async fn handle_connection(stream: TcpStream, clients: Clients) {
         .expect("Could not accpet socket stream");
     log::info!("Started a connection with {}", addr);
     let (tx, mut rx) = stream.split();
-    let (_room_id, _user_id) = handle_join::handle_join(&clients, &mut rx, tx, &addr)
+    let (room_id, user_id) = handle_join::handle_join(&clients, &mut rx, tx, &addr)
         .await
         .unwrap();
+    handle_payloads::handle_payloads(&clients, &mut rx, &room_id).await;
+    let tx = {
+        let mut clients = clients.lock().await;
+        let room = clients.get_mut(&room_id);
+        if let Some(room) = room {
+            room.users.remove(&user_id)
+        } else {
+            None
+        }
+    };
+    log::info!("Closed connection with {} at {}", user_id, addr);
+    if let Some(tx) = tx {
+        if let Ok(mut stream) = rx.reunite(tx) {
+            stream
+                .close(Some(CloseFrame {
+                    code: CloseCode::Normal,
+                    reason: Cow::Borrowed("Connection closed"),
+                }))
+                .await
+                .ok();
+        }
+    }
 }
 
 #[tokio::main]

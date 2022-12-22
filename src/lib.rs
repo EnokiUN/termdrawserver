@@ -42,7 +42,7 @@ pub struct Room {
     #[serde(serialize_with = "to_pixel_vec")]
     pub pixels: HashMap<(u32, u32), PixelColour>,
     #[serde(skip)]
-    pub users: Vec<SplitSink<WebSocketStream<TcpStream>, Message>>,
+    pub users: HashMap<Uuid, SplitSink<WebSocketStream<TcpStream>, Message>>,
 }
 
 pub fn to_pixel_vec<S>(
@@ -53,7 +53,7 @@ where
     S: Serializer,
 {
     let mut seq = serializer.serialize_seq(Some(value.len()))?;
-    for pixel in value.into_iter().map(|((x, y), colour)| Pixel {
+    for pixel in value.iter().map(|((x, y), colour)| Pixel {
         x: *x,
         y: *y,
         colour: colour.clone(),
