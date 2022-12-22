@@ -64,6 +64,7 @@ pub async fn handle_join(
                         .await
                         .expect("Could not send room create payload");
                         log::info!("Client {} tried to access unknown room", addr);
+                        return Err(());
                     }
                 }
                 _ => {}

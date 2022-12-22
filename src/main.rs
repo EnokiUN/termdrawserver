@@ -46,7 +46,11 @@ async fn handle_connection(stream: TcpStream, rooms: Rooms) {
         let mut rooms = rooms.lock().await;
         let room = rooms.get_mut(&room_id);
         if let Some(room) = room {
-            room.users.remove(&user_id)
+            let user = room.users.remove(&user_id);
+            if room.users.is_empty() {
+                rooms.remove(&room_id);
+            }
+            user
         } else {
             None
         }
