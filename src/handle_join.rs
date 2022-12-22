@@ -4,13 +4,13 @@ use futures::{
     stream::{SplitSink, SplitStream},
     SinkExt, StreamExt,
 };
-use termdrawserver::{ClientPayload, Clients, Room, ServerPayload};
+use termdrawserver::{ClientPayload, Room, Rooms, ServerPayload};
 use tokio::net::TcpStream;
 use tokio_tungstenite::{tungstenite::Message, WebSocketStream};
 use uuid::Uuid;
 
 pub async fn handle_join(
-    clients: &Clients,
+    rooms: &Rooms,
     rx: &mut SplitStream<WebSocketStream<TcpStream>>,
     mut tx: SplitSink<WebSocketStream<TcpStream>, Message>,
     addr: &SocketAddr,
@@ -29,7 +29,7 @@ pub async fn handle_join(
                     .expect("Could not send room create payload");
                     let mut users = HashMap::new();
                     users.insert(user_id, tx);
-                    clients.lock().await.insert(
+                    rooms.lock().await.insert(
                         room_id,
                         Room {
                             id: room_id,
@@ -46,8 +46,8 @@ pub async fn handle_join(
                     return Ok((room_id, user_id));
                 }
                 ClientPayload::JoinRoom(room_id) => {
-                    let mut clients = clients.lock().await;
-                    if let Some(room) = clients.get_mut(&room_id) {
+                    let mut rooms = rooms.lock().await;
+                    if let Some(room) = rooms.get_mut(&room_id) {
                         let user_id = Uuid::new_v4();
                         tx.send(Message::Text(
                             serde_json::to_string(&ServerPayload::Join { user_id, room }).unwrap(),

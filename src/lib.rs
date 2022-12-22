@@ -8,7 +8,7 @@ use tokio_tungstenite::{tungstenite::Message, WebSocketStream};
 use uuid::Uuid;
 
 // TODO: make a Room struct
-pub type Clients = Arc<Mutex<HashMap<Uuid, Room>>>;
+pub type Rooms = Arc<Mutex<HashMap<Uuid, Room>>>;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum PixelColour {

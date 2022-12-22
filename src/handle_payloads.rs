@@ -1,11 +1,11 @@
 use futures::{stream::SplitStream, SinkExt, StreamExt};
-use termdrawserver::{ClientPayload, Clients, ServerPayload};
+use termdrawserver::{ClientPayload, Rooms, ServerPayload};
 use tokio::net::TcpStream;
 use tokio_tungstenite::{tungstenite::Message, WebSocketStream};
 use uuid::Uuid;
 
 pub async fn handle_payloads(
-    clients: &Clients,
+    rooms: &Rooms,
     rx: &mut SplitStream<WebSocketStream<TcpStream>>,
     room_id: &Uuid,
 ) {
@@ -13,8 +13,8 @@ pub async fn handle_payloads(
         if let Ok(payload) = serde_json::from_str::<ClientPayload>(&msg) {
             match payload {
                 ClientPayload::Draw(pixel) => {
-                    let mut clients = clients.lock().await;
-                    let room = clients
+                    let mut rooms = rooms.lock().await;
+                    let room = rooms
                         .get_mut(room_id)
                         .expect("Could not obtain the client's room");
                     let payload = ServerPayload::Draw(pixel);
@@ -28,8 +28,8 @@ pub async fn handle_payloads(
                     }
                 }
                 ClientPayload::Reset => {
-                    let mut clients = clients.lock().await;
-                    let room = clients
+                    let mut rooms = rooms.lock().await;
+                    let room = rooms
                         .get_mut(room_id)
                         .expect("Could not obtain the client's room");
                     for (id, tx) in room.users.iter_mut() {

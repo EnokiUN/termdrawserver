@@ -13,7 +13,7 @@ use tokio_tungstenite::accept_async;
 use tokio_tungstenite::tungstenite::protocol::frame::coding::CloseCode;
 use tokio_tungstenite::tungstenite::protocol::CloseFrame;
 
-use termdrawserver::Clients;
+use termdrawserver::Rooms;
 
 // New Room
 //
@@ -30,20 +30,21 @@ use termdrawserver::Clients;
 // Client                            Server
 // RoomJoin(Uuid)  ----------->
 //                 <-----------      RoomNotFound
-async fn handle_connection(stream: TcpStream, clients: Clients) {
+async fn handle_connection(stream: TcpStream, rooms: Rooms) {
     let addr = stream.peer_addr().expect("Could not obtain peer address");
     let stream = accept_async(stream)
         .await
         .expect("Could not accpet socket stream");
     log::info!("Started a connection with {}", addr);
     let (tx, mut rx) = stream.split();
-    let (room_id, user_id) = handle_join::handle_join(&clients, &mut rx, tx, &addr)
-        .await
-        .unwrap();
-    handle_payloads::handle_payloads(&clients, &mut rx, &room_id).await;
+    let (room_id, user_id) = match handle_join::handle_join(&rooms, &mut rx, tx, &addr).await {
+        Ok(ids) => ids,
+        Err(_) => return,
+    };
+    handle_payloads::handle_payloads(&rooms, &mut rx, &room_id).await;
     let tx = {
-        let mut clients = clients.lock().await;
-        let room = clients.get_mut(&room_id);
+        let mut rooms = rooms.lock().await;
+        let room = rooms.get_mut(&room_id);
         if let Some(room) = room {
             room.users.remove(&user_id)
         } else {
@@ -79,11 +80,11 @@ async fn main() -> Result<(), anyhow::Error> {
         .with_context(|| format!("Could not bind a TCP socket to {}", server_address))?;
     log::info!("Started listenting on: {}", server_address);
 
-    let clients = Arc::new(Mutex::new(HashMap::new()));
+    let rooms = Arc::new(Mutex::new(HashMap::new()));
 
     while let Ok((stream, _)) = socket.accept().await {
-        let clients = Arc::clone(&clients);
-        tokio::spawn(handle_connection(stream, clients));
+        let rooms = Arc::clone(&rooms);
+        tokio::spawn(handle_connection(stream, rooms));
     }
 
     Ok(())
