@@ -1,5 +1,5 @@
 use futures::{stream::SplitStream, SinkExt, StreamExt};
-use termdrawserver::{ClientPayload, Rooms, ServerPayload};
+use termdrawserver::{ClientPayload, PixelColour, Rooms, ServerPayload};
 use tokio::net::TcpStream;
 use tokio_tungstenite::{tungstenite::Message, WebSocketStream};
 use uuid::Uuid;
@@ -17,6 +17,11 @@ pub async fn handle_payloads(
                     let room = rooms
                         .get_mut(room_id)
                         .expect("Could not obtain the client's room");
+                    if let PixelColour::Clear = pixel.colour {
+                        room.pixels.remove(&(pixel.x, pixel.y));
+                    } else {
+                        room.pixels.insert((pixel.x, pixel.y), pixel.colour.clone());
+                    }
                     let payload = ServerPayload::Draw(pixel);
                     for (id, tx) in room.users.iter_mut() {
                         if let Err(err) = tx
@@ -32,6 +37,7 @@ pub async fn handle_payloads(
                     let room = rooms
                         .get_mut(room_id)
                         .expect("Could not obtain the client's room");
+                    room.pixels.clear();
                     for (id, tx) in room.users.iter_mut() {
                         if let Err(err) = tx
                             .send(Message::Text(

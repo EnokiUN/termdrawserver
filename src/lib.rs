@@ -39,8 +39,12 @@ pub struct Pixel {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Room {
     pub id: Uuid,
+    #[cfg(feature = "logic")]
     #[serde(serialize_with = "to_pixel_vec")]
     pub pixels: HashMap<(u32, u32), PixelColour>,
+    #[cfg(not(feature = "logic"))]
+    pub pixels: Vec<Pixel>,
+    #[cfg(feature = "logic")]
     #[serde(skip)]
     pub users: HashMap<Uuid, SplitSink<WebSocketStream<TcpStream>, Message>>,
 }
@@ -63,7 +67,7 @@ where
     seq.end()
 }
 
-#[cfg(not(feature = "models"))]
+#[cfg(feature = "logic")]
 #[derive(Debug, Serialize)]
 #[serde(tag = "op", content = "d")]
 pub enum ServerPayload<'a> {
@@ -74,7 +78,7 @@ pub enum ServerPayload<'a> {
     RoomNotFound,
 }
 
-#[cfg(feature = "models")]
+#[cfg(not(feature = "logic"))]
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "op", content = "d")]
 pub enum ServerPayload {
