@@ -15,21 +15,6 @@ use tokio_tungstenite::tungstenite::protocol::CloseFrame;
 
 use termdrawserver::Rooms;
 
-// New Room
-//
-// Client                            Server
-// RoomCreate      ----------->
-//                 <-----------       NewRoom(UUid, Uuid)
-//
-// Join Room
-// Client                            Server
-// RoomJoin(Uuid)  ----------->
-//                 <-----------      Join(Uuid, Room)
-//
-// Join non-existent room
-// Client                            Server
-// RoomJoin(Uuid)  ----------->
-//                 <-----------      RoomNotFound
 async fn handle_connection(stream: TcpStream, rooms: Rooms) {
     let addr = stream.peer_addr().expect("Could not obtain peer address");
     let stream = accept_async(stream)
