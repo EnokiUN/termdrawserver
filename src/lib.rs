@@ -71,8 +71,8 @@ where
 #[derive(Debug, Serialize)]
 #[serde(tag = "op", content = "d")]
 pub enum ServerPayload<'a> {
-    Draw(Pixel),
-    Reset,
+    Draw { user_id: Uuid, pixel: Pixel },
+    Reset(Uuid),
     Join { user_id: Uuid, room: &'a Room },
     NewRoom { room_id: Uuid, user_id: Uuid },
     RoomNotFound,
@@ -82,8 +82,8 @@ pub enum ServerPayload<'a> {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "op", content = "d")]
 pub enum ServerPayload {
-    Draw(Pixel),
-    Reset,
+    Draw { user_id: Uuid, pixel: Pixel },
+    Reset(Uuid),
     Join { user_id: Uuid, room: Room },
     NewRoom { room_id: Uuid, user_id: Uuid },
     RoomNotFound,

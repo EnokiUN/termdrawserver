@@ -8,6 +8,7 @@ pub async fn handle_payloads(
     rooms: &Rooms,
     rx: &mut SplitStream<WebSocketStream<TcpStream>>,
     room_id: &Uuid,
+    user_id: &Uuid,
 ) {
     while let Some(Ok(Message::Text(msg))) = rx.next().await {
         if let Ok(payload) = serde_json::from_str::<ClientPayload>(&msg) {
@@ -22,12 +23,13 @@ pub async fn handle_payloads(
                     } else {
                         room.pixels.insert((pixel.x, pixel.y), pixel.colour.clone());
                     }
-                    let payload = ServerPayload::Draw(pixel);
+                    let payload = serde_json::to_string(&ServerPayload::Draw {
+                        user_id: *user_id,
+                        pixel,
+                    })
+                    .unwrap();
                     for (id, tx) in room.users.iter_mut() {
-                        if let Err(err) = tx
-                            .send(Message::Text(serde_json::to_string(&payload).unwrap()))
-                            .await
-                        {
+                        if let Err(err) = tx.send(Message::Text(payload.clone())).await {
                             log::error!("Could not send event to {}: {:?}", id, err);
                         }
                     }
@@ -38,13 +40,9 @@ pub async fn handle_payloads(
                         .get_mut(room_id)
                         .expect("Could not obtain the client's room");
                     room.pixels.clear();
+                    let payload = serde_json::to_string(&ServerPayload::Reset(*user_id)).unwrap();
                     for (id, tx) in room.users.iter_mut() {
-                        if let Err(err) = tx
-                            .send(Message::Text(
-                                serde_json::to_string(&ServerPayload::Reset).unwrap(),
-                            ))
-                            .await
-                        {
+                        if let Err(err) = tx.send(Message::Text(payload.clone())).await {
                             log::error!("Could not send event to {}: {:?}", id, err);
                         }
                     }

@@ -26,7 +26,7 @@ async fn handle_connection(stream: TcpStream, rooms: Rooms) {
         Ok(ids) => ids,
         Err(_) => return,
     };
-    handle_payloads::handle_payloads(&rooms, &mut rx, &room_id).await;
+    handle_payloads::handle_payloads(&rooms, &mut rx, &room_id, &user_id).await;
     let tx = {
         let mut rooms = rooms.lock().await;
         let room = rooms.get_mut(&room_id);
